@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
+import stat
 import sys
 from pathlib import Path
 
 from .config import load_config
 from .extract import extract
 from .naming import build_filename, missing_fields, unique_path
+
+
+# 呼び出し側（クイックアクション）が権限エラーを見分けるための目印
+PERMISSION_MARKER = "[権限なし] アクセスが許可されていません"
 
 
 def is_sidecar(path: Path) -> bool:
@@ -28,7 +34,24 @@ def collect_pdfs(inputs: list[str], recursive: bool) -> list[Path]:
     found: list[Path] = []
     for item in inputs:
         path = Path(item)
-        if path.is_dir():
+        # Path.is_file() は権限が無いときも False を返すので、
+        # 「無い」のか「見えない」のかを os.stat で区別する。
+        # 外付けディスクではこの差が原因のすべてになりうる。
+        try:
+            mode = os.stat(path).st_mode
+        except PermissionError:
+            print(
+                f"{PERMISSION_MARKER}: {path}\n"
+                "  システム設定 →「プライバシーとセキュリティ」→「ファイルとフォルダ」"
+                "（または「フルディスクアクセス」）でアクセスを許可してください。",
+                file=sys.stderr,
+            )
+            continue
+        except OSError:
+            print(f"見つかりません: {path}", file=sys.stderr)
+            continue
+
+        if stat.S_ISDIR(mode):
             # 拡張子の大文字小文字は問わない（.PDF で書き出す機器があるため）
             pattern = "**/*" if recursive else "*"
             found.extend(
@@ -38,11 +61,11 @@ def collect_pdfs(inputs: list[str], recursive: bool) -> list[Path]:
                     if p.is_file() and p.suffix.lower() == ".pdf" and not is_sidecar(p)
                 )
             )
-        elif path.is_file():
+        elif stat.S_ISREG(mode):
             if not is_sidecar(path):
                 found.append(path)
         else:
-            print(f"見つかりません: {path}", file=sys.stderr)
+            print(f"ファイルでもフォルダでもありません: {path}", file=sys.stderr)
     # 重複を除きつつ順番は保つ
     seen: set[Path] = set()
     unique: list[Path] = []

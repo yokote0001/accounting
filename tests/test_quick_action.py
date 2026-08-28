@@ -263,3 +263,31 @@ def test_install_writes_the_command_path(tmp_path, monkeypatch, doc_namer_cmd):
     qa.install(doc_namer_cmd, tmp_path / "Services", flush=False)
     conf = home / ".config" / "doc-namer" / "command"
     assert conf.read_text(encoding="utf-8") == str(doc_namer_cmd)
+
+
+def test_permission_error_shows_a_dedicated_alert(tmp_path, fake_home, doc_namer_cmd):
+    """権限エラーを「PDFがありません」で片付けず、専用の案内を出す。"""
+    services = tmp_path / "Services"
+    qa.install(doc_namer_cmd, services, flush=False, write_config=False)
+    (fake_home / ".config" / "doc-namer" / "command").write_text(
+        str(doc_namer_cmd), encoding="utf-8"
+    )
+    work = tmp_path / "請求書"
+    work.mkdir()
+    write_pdf(work / "scan.pdf", INVOICE_LINES)
+
+    # doc-namer の代わりに、権限エラーだけを出す偽コマンドを使わせる
+    fake = tmp_path / "fake-doc-namer"
+    fake.write_text(
+        "#!/bin/bash\necho '[権限なし] アクセスが許可されていません: /Volumes/x' >&2\nexit 1\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    (fake_home / ".config" / "doc-namer" / "command").write_text(str(fake), encoding="utf-8")
+
+    result, dialogs = _run_embedded(services, work, [work], home=fake_home)
+
+    assert result.returncode == 0, result.stderr.decode()
+    assert "display alert" in dialogs
+    assert "ファイルにアクセスできません" in dialogs
+    assert "PDF が選ばれていません" not in dialogs

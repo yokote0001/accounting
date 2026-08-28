@@ -49,18 +49,26 @@ notify() {{
 
 # --move --dry-run で「どう変わるか」を先に取る
 plan=$("$CMD" "$@" --move --dry-run 2>/dev/null)
-skipped=$("$CMD" "$@" --move --dry-run 2>&1 >/dev/null | grep -c "\[NG\]")
+problems=$("$CMD" "$@" --move --dry-run 2>&1 >/dev/null)
+skipped=$(printf '%s\n' "$problems" | grep -c "\[NG\]")
+
+{{
+  echo "=== $(date '+%Y-%m-%d %H:%M:%S') ==="
+  echo "使用コマンド: $CMD"
+  echo "選択: $@"
+  printf '%s\n' "$problems"
+}} >>"$LOG" 2>&1
 
 if [ -z "$plan" ]; then
-  # 何も名前を作れなかった理由を伝える。
-  # 「PDFが選ばれていない」のか「読み取れなかった」のかで対処が違う。
-  {{
-    echo "=== $(date '+%Y-%m-%d %H:%M:%S') 対象なし ==="
-    echo "選択: $@"
-    "$CMD" "$@" --move --dry-run
-  }} >>"$LOG" 2>&1
+  # 何も名前を作れなかった理由を伝える。原因ごとに次の手が違う。
+  if printf '%s\n' "$problems" | grep -q "\[権限なし\]"; then
+    osascript -e 'display alert "ファイルにアクセスできません" message "クイックアクションに、選んだファイルの場所（外付けディスクなど）へのアクセス許可がありません。
 
-  if [ "$skipped" -gt 0 ]; then
+システム設定 →「プライバシーとセキュリティ」→「ファイルとフォルダ」
+または「フルディスクアクセス」で許可してください。
+
+回避策として、ターミナルからは実行できます。" buttons {{"OK"}}' >/dev/null 2>&1
+  elif [ "$skipped" -gt 0 ]; then
     notify "$skipped 件を請求書・支払通知書として読み取れませんでした"
   else
     notify "請求書・支払通知書の PDF が選ばれていません"

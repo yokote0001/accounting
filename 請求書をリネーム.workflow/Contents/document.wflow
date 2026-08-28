@@ -89,18 +89,26 @@ notify() {
 
 # --move --dry-run で「どう変わるか」を先に取る
 plan=$("$CMD" "$@" --move --dry-run 2&gt;/dev/null)
-skipped=$("$CMD" "$@" --move --dry-run 2&gt;&amp;1 &gt;/dev/null | grep -c "\[NG\]")
+problems=$("$CMD" "$@" --move --dry-run 2&gt;&amp;1 &gt;/dev/null)
+skipped=$(printf '%s\n' "$problems" | grep -c "\[NG\]")
+
+{
+  echo "=== $(date '+%Y-%m-%d %H:%M:%S') ==="
+  echo "使用コマンド: $CMD"
+  echo "選択: $@"
+  printf '%s\n' "$problems"
+} &gt;&gt;"$LOG" 2&gt;&amp;1
 
 if [ -z "$plan" ]; then
-  # 何も名前を作れなかった理由を伝える。
-  # 「PDFが選ばれていない」のか「読み取れなかった」のかで対処が違う。
-  {
-    echo "=== $(date '+%Y-%m-%d %H:%M:%S') 対象なし ==="
-    echo "選択: $@"
-    "$CMD" "$@" --move --dry-run
-  } &gt;&gt;"$LOG" 2&gt;&amp;1
+  # 何も名前を作れなかった理由を伝える。原因ごとに次の手が違う。
+  if printf '%s\n' "$problems" | grep -q "\[権限なし\]"; then
+    osascript -e 'display alert "ファイルにアクセスできません" message "クイックアクションに、選んだファイルの場所（外付けディスクなど）へのアクセス許可がありません。
 
-  if [ "$skipped" -gt 0 ]; then
+システム設定 →「プライバシーとセキュリティ」→「ファイルとフォルダ」
+または「フルディスクアクセス」で許可してください。
+
+回避策として、ターミナルからは実行できます。" buttons {"OK"}' &gt;/dev/null 2&gt;&amp;1
+  elif [ "$skipped" -gt 0 ]; then
     notify "$skipped 件を請求書・支払通知書として読み取れませんでした"
   else
     notify "請求書・支払通知書の PDF が選ばれていません"
@@ -159,7 +167,7 @@ notify "$count 件をリネームしました"
 				<key>Class Name</key>
 				<string>RunShellScriptAction</string>
 				<key>InputUUID</key>
-				<string>D4510766-0F31-4FEC-830F-CC913599F933</string>
+				<string>4BFCCCAD-6CBB-486A-8A30-92AE871A1F81</string>
 				<key>Keywords</key>
 				<array>
 					<string>Shell</string>
@@ -169,9 +177,9 @@ notify "$count 件をリネームしました"
 					<string>Unix</string>
 				</array>
 				<key>OutputUUID</key>
-				<string>6F9D057E-95D7-4ECC-8FDF-E426EBE806EC</string>
+				<string>A1A9B2B5-AB25-4FF6-BFA2-9E6791325B25</string>
 				<key>UUID</key>
-				<string>65B4308D-322F-45AA-AAB3-FE2A5865550B</string>
+				<string>DD8709D4-0034-4A39-A63F-238125E12E59</string>
 				<key>UnlocalizedApplications</key>
 				<array>
 					<string>Automator</string>
@@ -214,7 +222,7 @@ notify "$count 件をリネームしました"
 		<key>serviceProcessesInput</key>
 		<integer>0</integer>
 		<key>serviceUUID</key>
-		<string>8326EEB0-D525-487A-B5BE-3652823648A5</string>
+		<string>CA255A19-0B5E-4E92-B219-B383369B669F</string>
 		<key>workflowTypeIdentifier</key>
 		<string>com.apple.Automator.servicesMenu</string>
 	</dict>

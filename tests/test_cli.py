@@ -204,3 +204,36 @@ def test_same_recipient_on_every_page_is_fine(tmp_path):
     out = tmp_path / "out"
     assert main([str(two_page), "-o", str(out)]) == 0
     assert (out / "7月ご請求 合同会社がっく 御中.pdf").exists()
+
+
+def test_permission_denied_is_reported_as_such(tmp_path, monkeypatch, capsys):
+    """権限が無いだけのものを「見つかりません」で片付けない。
+
+    Path.is_file() は権限が無いと False を返すため、区別しないと
+    外付けディスクの権限問題が「PDFが無い」に化けてしまう。
+    """
+    import os as os_module
+
+    from doc_namer import cli
+
+    target = tmp_path / "請求書"
+    target.mkdir()
+
+    real_stat = os_module.stat
+
+    def deny(path, *a, **kw):
+        if str(path) == str(target):
+            raise PermissionError(13, "Permission denied")
+        return real_stat(path, *a, **kw)
+
+    monkeypatch.setattr(cli.os, "stat", deny)
+
+    assert cli.main([str(target), "-o", str(tmp_path / "out")]) == 1
+    err = capsys.readouterr().err
+    assert cli.PERMISSION_MARKER in err
+    assert "プライバシーとセキュリティ" in err
+
+
+def test_missing_path_still_says_not_found(tmp_path, capsys):
+    assert main([str(tmp_path / "ない.pdf"), "-o", str(tmp_path / "out")]) == 1
+    assert "見つかりません" in capsys.readouterr().err
