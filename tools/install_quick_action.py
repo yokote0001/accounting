@@ -79,7 +79,7 @@ message="$count 件をこの名前に変更します:
 $preview"
 [ "$skipped" -gt 0 ] && message="$message
 
-（$skipped 件は読み取れないためそのままにします）"
+（$skipped 件はそのままにします）"
 
 answer=$(osascript -e "display dialog \"$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/\"/\\\"/g')\" with title \"請求書をリネーム\" buttons {{\"キャンセル\", \"リネーム\"}} default button \"リネーム\"" 2>/dev/null)
 

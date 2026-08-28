@@ -13,6 +13,16 @@ from .extract import extract
 from .naming import build_filename, missing_fields, unique_path
 
 
+def is_sidecar(path: Path) -> bool:
+    """macOS が作る付随ファイルか。
+
+    USB メモリや NAS など Mac 以外の形式のディスクでは、1 つのファイルにつき
+    `._名前.pdf` というメタデータ用のファイルが並んで作られる。中身は PDF では
+    ないので、拾うと必ず読み取りエラーになる。
+    """
+    return path.name.startswith("._")
+
+
 def collect_pdfs(inputs: list[str], recursive: bool) -> list[Path]:
     """引数のファイル / フォルダから PDF を集める。"""
     found: list[Path] = []
@@ -25,11 +35,12 @@ def collect_pdfs(inputs: list[str], recursive: bool) -> list[Path]:
                 sorted(
                     p
                     for p in path.glob(pattern)
-                    if p.is_file() and p.suffix.lower() == ".pdf"
+                    if p.is_file() and p.suffix.lower() == ".pdf" and not is_sidecar(p)
                 )
             )
         elif path.is_file():
-            found.append(path)
+            if not is_sidecar(path):
+                found.append(path)
         else:
             print(f"見つかりません: {path}", file=sys.stderr)
     # 重複を除きつつ順番は保つ
@@ -118,6 +129,19 @@ def main(argv: list[str] | None = None) -> int:
             print("----- PDF から読み取った本文 -----")
             print(doc.text)
             print("=" * 40)
+
+        # 複数社ぶんをまとめた PDF を1社の名前にしてしまうと、
+        # あとから中身と名前が食い違う。分割前のファイルは触らない。
+        if len(doc.recipients) > 1:
+            failures += 1
+            print(
+                f"[NG] {pdf.name}: 宛名が {len(doc.recipients)} 件見つかりました"
+                f"（{doc.pages}ページ）。分割前のファイルと思われるのでそのままにします"
+                f" — {' / '.join(doc.recipients[:3])}"
+                + (" …" if len(doc.recipients) > 3 else ""),
+                file=sys.stderr,
+            )
+            continue
 
         missing = missing_fields(doc, config)
         if missing:

@@ -138,7 +138,7 @@ def test_embedded_script_leaves_unreadable_files_alone(bundle_script_env, fake_h
     assert result.returncode == 0, result.stderr.decode()
     assert other.exists()
     assert (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
-    assert "1 件は読み取れないためそのままにします" in dialogs
+    assert "1 件はそのままにします" in dialogs
 
 
 def test_embedded_script_handles_a_folder_argument(bundle_script_env, fake_home):

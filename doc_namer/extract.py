@@ -34,6 +34,9 @@ class ExtractedDoc:
     day: int | None
     date_label: str | None
     text: str
+    # 見つかった宛名すべて（複数あれば1つのPDFに複数の書類が入っている）
+    recipients: tuple[str, ...] = ()
+    pages: int = 1
 
     # 何が揃っていれば足りるかは命名テンプレート次第なので、
     # 判定は naming.missing_fields() が持つ。
@@ -79,11 +82,16 @@ def detect_doc_type(text: str, config: Config = DEFAULT_CONFIG) -> DocTypeRule |
     return None
 
 
-def find_recipient(lines: list[TextLine], config: Config = DEFAULT_CONFIG) -> str | None:
-    """「御中」「様」で終わる行のうち、いちばん大きな文字のものを宛名とみなす。
+def find_recipients(
+    lines: list[TextLine], config: Config = DEFAULT_CONFIG
+) -> list[str]:
+    """「御中」「様」で終わる行を、宛名らしい順に返す。
 
     明細行（例: ご紹介手数料(株式会社EDIN様)）を拾わないよう、敬称で終わる行だけを
-    候補にし、同点なら上にあるものを優先する。
+    候補にし、文字が大きい順、同点なら上にあるものを優先する。
+
+    複数の請求書を1つにまとめた PDF では、ここに複数の宛名が並ぶ。
+    どれを使うか決められないので、呼び出し側でエラーにする。
     """
     honorifics = sorted(config.honorifics, key=len, reverse=True)
     candidates: list[tuple[float, int, float, str]] = []
@@ -96,10 +104,22 @@ def find_recipient(lines: list[TextLine], config: Config = DEFAULT_CONFIG) -> st
                     continue
                 candidates.append((-line.size, line.page, line.y, f"{body} {honorific}"))
                 break
-    if not candidates:
-        return None
     candidates.sort()
-    return candidates[0][3]
+
+    # 同じ宛名が複数ページに出る場合は 1 つとして扱う
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for _, _, _, name in candidates:
+        if name not in seen:
+            seen.add(name)
+            ordered.append(name)
+    return ordered
+
+
+def find_recipient(lines: list[TextLine], config: Config = DEFAULT_CONFIG) -> str | None:
+    """いちばん宛名らしい 1 件を返す。"""
+    found = find_recipients(lines, config)
+    return found[0] if found else None
 
 
 def find_date(
@@ -127,7 +147,8 @@ def extract(path: Path | str, config: Config = DEFAULT_CONFIG) -> ExtractedDoc:
     text = unicodedata.normalize("NFKC", "\n".join(normalize(line.text) for line in lines))
 
     doc_type = detect_doc_type(text, config)
-    recipient = find_recipient(lines, config)
+    recipients = find_recipients(lines, config)
+    recipient = recipients[0] if recipients else None
     labels = doc_type.date_labels if doc_type else ()
     year, month, day, date_label = find_date(text, tuple(unicodedata.normalize("NFKC", label) for label in labels))
 
@@ -140,4 +161,6 @@ def extract(path: Path | str, config: Config = DEFAULT_CONFIG) -> ExtractedDoc:
         day=day,
         date_label=date_label,
         text=text,
+        recipients=tuple(recipients),
+        pages=(max(line.page for line in lines) + 1) if lines else 1,
     )

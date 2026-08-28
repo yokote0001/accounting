@@ -147,3 +147,60 @@ def test_dump_text_works_for_unrecognised_pdf(tmp_path, capsys):
     printed = capsys.readouterr().out
     assert "書類種別: 判定できず" in printed
     assert "見積書" in printed
+
+
+def test_appledouble_sidecar_files_are_ignored(tmp_path, capsys):
+    """USBやNASにできる ._ ファイルは PDF ではないので対象にしない。"""
+    work = tmp_path / "請求書"
+    work.mkdir()
+    write_pdf(work / "scan.pdf", INVOICE_LINES)
+    (work / "._scan.pdf").write_bytes(b"\x00\x05\x16\x07")  # AppleDouble の中身
+    out = tmp_path / "out"
+
+    assert main([str(work), "-o", str(out)]) == 0
+    assert "[NG]" not in capsys.readouterr().err
+    assert len(list(out.glob("*.pdf"))) == 1
+
+
+def test_sidecar_ignored_when_named_directly(tmp_path):
+    work = tmp_path / "請求書"
+    work.mkdir()
+    (work / "._scan.pdf").write_bytes(b"\x00\x05\x16\x07")
+    assert main([str(work / "._scan.pdf"), "-o", str(tmp_path / "out")]) == 1
+
+
+def test_combined_pdf_with_many_recipients_is_left_alone(tmp_path, capsys):
+    """複数社ぶんをまとめた PDF を1社の名前にリネームしてしまわない。"""
+    doc = pymupdf.open()
+    for name in ["合同会社がっく 御中", "株式会社エー 御中", "岩本凛 様"]:
+        page = doc.new_page()
+        page.insert_text((60, 90), "INVOICE 請求書", fontname="japan", fontsize=20)
+        page.insert_text((60, 150), name, fontname="japan", fontsize=22)
+        page.insert_text((60, 500), "ご請求日：2026年7月31日", fontname="japan", fontsize=11)
+    combined = tmp_path / "まとめ.pdf"
+    doc.save(combined)
+    doc.close()
+
+    assert main([str(combined), "-o", str(tmp_path / "out"), "--move"]) == 1
+    err = capsys.readouterr().err
+    assert "宛名が 3 件見つかりました" in err
+    assert "3ページ" in err
+    # 元ファイルは触らない
+    assert combined.exists()
+
+
+def test_same_recipient_on_every_page_is_fine(tmp_path):
+    """同じ宛名が複数ページに出るだけなら、ふつうにリネームする。"""
+    doc = pymupdf.open()
+    for _ in range(2):
+        page = doc.new_page()
+        page.insert_text((60, 90), "INVOICE 請求書", fontname="japan", fontsize=20)
+        page.insert_text((60, 150), "合同会社がっく 御中", fontname="japan", fontsize=22)
+        page.insert_text((60, 500), "ご請求日：2026年7月31日", fontname="japan", fontsize=11)
+    two_page = tmp_path / "2ページ.pdf"
+    doc.save(two_page)
+    doc.close()
+
+    out = tmp_path / "out"
+    assert main([str(two_page), "-o", str(out)]) == 0
+    assert (out / "7月ご請求 合同会社がっく 御中.pdf").exists()
