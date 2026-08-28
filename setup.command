@@ -63,19 +63,17 @@ echo
 if [ "$(uname)" = "Darwin" ]; then
   echo "▸ Finder の右クリックメニューに登録中..."
   if ./.venv/bin/python tools/install_quick_action.py "$(pwd)/.venv/bin/doc-namer"; then
-    # 本当に macOS が認識したかまで確かめる
+    # Finder を再起動してサービス一覧を読み直させる。
+    # Finder は自動で起動し直すので、デスクトップが一瞬消えるだけ。
+    echo "▸ Finder を再読み込み中..."
+    killall Finder 2>/dev/null || true
+
+    # macOS が認識したかの目安。ここが空振りでも実際には
+    # 使えることがあるので、警告は出すが手順は最後まで表示する。
     PBS="/System/Library/CoreServices/pbs"
+    REGISTERED=1
     if [ -x "$PBS" ] && ! "$PBS" -dump_pboard 2>/dev/null | grep -q "請求書をリネーム"; then
-      echo
-      echo "⚠ 登録はしましたが、macOS がまだ認識していません。"
-      echo
-      echo "  次のどちらかを試してください:"
-      echo "   (a) 一度ログアウトして入り直す"
-      echo "   (b) このフォルダの「請求書をリネーム.workflow」をダブルクリックし、"
-      echo "       「インストール」を押す"
-      echo
-      echo "  それでも駄目なら「bash check.command」の出力を共有してください。"
-      finish 0
+      REGISTERED=0
     fi
     echo
     echo "=============================="
@@ -89,9 +87,19 @@ if [ "$(uname)" = "Darwin" ]; then
     echo "  選んだファイルがその場でリネームされます。"
     echo "  フォルダごと選んでも、複数選んでも大丈夫です。"
     echo
-    echo "メニューに出てこないときは:"
-    echo "  システム設定 →「一般」→「ログイン項目と機能拡張」→「Finder機能拡張」"
-    echo "  で「請求書をリネーム」を有効にしてください。"
+    if [ "$REGISTERED" = "0" ]; then
+      echo "※ macOS 側の登録確認は空振りでしたが、実際には使えることが多いです。"
+      echo "  まず上の手順を試してください。"
+      echo
+    fi
+    echo "メニューに出てこないときは、上から順に:"
+    echo "  1. このフォルダの「請求書をリネーム.workflow」をダブルクリックし"
+    echo "     「インストール」を押す"
+    echo "  2. システム設定 →「一般」→「ログイン項目と機能拡張」→「Finder機能拡張」"
+    echo "     で「請求書をリネーム」を有効にする"
+    echo "  3. 一度ログアウトして入り直す"
+    echo
+    echo "  それでも駄目なら「bash check.command」の出力を共有してください。"
   else
     echo
     echo "✗ 右クリックメニューの登録に失敗しました。"
