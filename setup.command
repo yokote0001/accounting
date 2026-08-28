@@ -23,6 +23,49 @@ finish() {
   exit "${1:-0}"
 }
 
+# ダウンロード / デスクトップ / 書類 フォルダは macOS に保護されていて、
+# クイックアクションのプロセスからは中のプログラムを起動できない
+# （Operation not permitted になる）。仮想環境を作る前に移しておく。
+# 作ったあとだと、環境の中に古い場所が焼き込まれてしまい作り直しになる。
+case "$(pwd)/" in
+  "$HOME/Downloads/"*|"$HOME/Desktop/"*|"$HOME/Documents/"*)
+    echo "⚠ このフォルダは macOS に保護された場所にあります。"
+    echo "   $(pwd)"
+    echo
+    echo "  ここに置いたままだと、Finder の右クリックから実行できません。"
+    echo "  ホームフォルダ直下に移すと解決します。"
+    echo
+
+    DEST="$HOME/$(basename "$(pwd)")"
+    n=2
+    while [ -e "$DEST" ]; do
+      DEST="$HOME/$(basename "$(pwd)") ($n)"
+      n=$((n + 1))
+    done
+
+    printf "移動しますか？ [Y/n]: "
+    IFS= read -r move_answer
+    case "$move_answer" in
+      [Nn]*)
+        echo
+        echo "  移動せずに続けます。"
+        echo "  ターミナルからは使えますが、右クリックメニューは動きません。"
+        echo
+        ;;
+      *)
+        if mv "$(pwd)" "$DEST" 2>/dev/null && cd "$DEST"; then
+          echo "✓ 移動しました: $DEST"
+          echo
+        else
+          echo "✗ 移動できませんでした。手動で移してからやり直してください:"
+          echo "    mv \"$(pwd)\" \"$DEST\""
+          finish 1
+        fi
+        ;;
+    esac
+    ;;
+esac
+
 # tomllib を使うので Python 3.11 以上が必要
 PY=""
 for candidate in python3.14 python3.13 python3.12 python3.11 python3; do

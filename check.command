@@ -15,7 +15,20 @@ echo "## 1. macOS"
 sw_vers 2>/dev/null || echo "  (sw_vers なし: macOS ではありません)"
 echo
 
-echo "## 2. セットアップの状態"
+echo "## 2. 設置場所"
+case "$(pwd)/" in
+  "$HOME/Downloads/"*|"$HOME/Desktop/"*|"$HOME/Documents/"*)
+    echo "  ✗ macOS に保護された場所にあります: $(pwd)"
+    echo "    クイックアクションからは起動できません（Operation not permitted）。"
+    echo "    ホームフォルダ直下に移して setup.command をやり直してください。"
+    ;;
+  *)
+    echo "  ✓ 問題ありません: $(pwd)"
+    ;;
+esac
+echo
+
+echo "## 3. セットアップの状態"
 if [ -x "./.venv/bin/doc-namer" ]; then
   echo "  ✓ doc-namer あり: $(pwd)/.venv/bin/doc-namer"
   if ./.venv/bin/doc-namer --help >/dev/null 2>&1; then
@@ -28,7 +41,7 @@ else
 fi
 echo
 
-echo "## 3. クイックアクションのバンドル"
+echo "## 4. クイックアクションのバンドル"
 if [ -d "$BUNDLE" ]; then
   echo "  ✓ ある: $BUNDLE"
   echo "  中身:"
@@ -59,7 +72,7 @@ else
 fi
 echo
 
-echo "## 4. macOS がサービスとして認識しているか"
+echo "## 5. macOS がサービスとして認識しているか"
 PBS="/System/Library/CoreServices/pbs"
 if [ -x "$PBS" ]; then
   if "$PBS" -dump_pboard 2>/dev/null | grep -q "請求書をリネーム"; then
@@ -72,7 +85,7 @@ else
 fi
 echo
 
-echo "## 5. 他のクイックアクション（比較用）"
+echo "## 6. 他のクイックアクション（比較用）"
 ls -1 "$HOME/Library/Services" 2>/dev/null | sed 's|^|    |' || echo "    (なし)"
 echo
 
