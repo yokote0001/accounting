@@ -63,6 +63,20 @@ echo
 if [ "$(uname)" = "Darwin" ]; then
   echo "▸ Finder の右クリックメニューに登録中..."
   if ./.venv/bin/python tools/install_quick_action.py "$(pwd)/.venv/bin/doc-namer"; then
+    # 本当に macOS が認識したかまで確かめる
+    PBS="/System/Library/CoreServices/pbs"
+    if [ -x "$PBS" ] && ! "$PBS" -dump_pboard 2>/dev/null | grep -q "請求書をリネーム"; then
+      echo
+      echo "⚠ 登録はしましたが、macOS がまだ認識していません。"
+      echo
+      echo "  次のどちらかを試してください:"
+      echo "   (a) 一度ログアウトして入り直す"
+      echo "   (b) このフォルダの「請求書をリネーム.workflow」をダブルクリックし、"
+      echo "       「インストール」を押す"
+      echo
+      echo "  それでも駄目なら「bash 診断.command」の出力を共有してください。"
+      finish 0
+    fi
     echo
     echo "=============================="
     echo " ✓ すべて完了しました"

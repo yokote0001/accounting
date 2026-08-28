@@ -23,9 +23,23 @@ SHELL_SCRIPT = r"""#!/bin/bash
 # Finder で選択された PDF を、その場でリネームする。
 set -uo pipefail
 
-CMD="{cmd}"
+# doc-namer の場所は設定ファイルから読む。
+# こうしておくと、このバンドルをどこから入れても（配布物を
+# ダブルクリックしてインストールしても）同じものが使える。
+CONF="$HOME/.config/doc-namer/command"
+if [ -r "$CONF" ]; then
+  CMD="$(cat "$CONF")"
+else
+  CMD="{cmd}"
+fi
+
 LOG="$HOME/Library/Logs/doc-namer.log"
 mkdir -p "$(dirname "$LOG")"
+
+if [ ! -x "$CMD" ]; then
+  osascript -e 'display alert "セットアップが必要です" message "先に セットアップ.command を実行してください。"' >/dev/null 2>&1
+  exit 1
+fi
 
 [ "$#" -eq 0 ] && exit 0
 
@@ -173,13 +187,24 @@ def build_wflow(script: str, service_uuid: str) -> dict:
     }
 
 
-def install(cmd_path: Path, services_dir: Path = SERVICES_DIR, flush: bool = True) -> Path:
+def install(
+    cmd_path: Path,
+    services_dir: Path = SERVICES_DIR,
+    flush: bool = True,
+    write_config: bool = True,
+) -> Path:
     bundle = services_dir / f"{SERVICE_NAME}.workflow"
     contents = bundle / "Contents"
 
     if bundle.exists():
         shutil.rmtree(bundle)
     contents.mkdir(parents=True)
+
+    if write_config:
+        # doc-namer の場所を、バンドルから読める場所に控えておく
+        conf = Path.home() / ".config" / "doc-namer" / "command"
+        conf.parent.mkdir(parents=True, exist_ok=True)
+        conf.write_text(str(cmd_path), encoding="utf-8")
 
     service_uuid = str(uuid.uuid4()).upper()
     script = SHELL_SCRIPT.format(cmd=cmd_path)
@@ -203,14 +228,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", help="doc-namer 実行ファイルのパス")
     parser.add_argument("--services-dir", default=str(SERVICES_DIR))
     parser.add_argument("--no-flush", action="store_true")
+    parser.add_argument(
+        "--no-config",
+        action="store_true",
+        help="~/.config/doc-namer/command を書かない（配布用バンドルの生成時）",
+    )
     args = parser.parse_args(argv)
 
-    cmd_path = Path(args.command).resolve()
-    if not cmd_path.exists():
-        print(f"✗ 見つかりません: {cmd_path}", file=sys.stderr)
-        return 1
+    cmd_path = Path(args.command)
+    if not args.no_config:
+        cmd_path = cmd_path.resolve()
+        if not cmd_path.exists():
+            print(f"✗ 見つかりません: {cmd_path}", file=sys.stderr)
+            return 1
 
-    bundle = install(cmd_path, Path(args.services_dir), flush=not args.no_flush)
+    bundle = install(
+        cmd_path,
+        Path(args.services_dir),
+        flush=not args.no_flush,
+        write_config=not args.no_config,
+    )
     print(f"✓ 追加しました: {bundle}")
     return 0
 

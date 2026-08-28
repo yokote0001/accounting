@@ -19,7 +19,9 @@ from tests.test_cli import INVOICE_LINES, NOTICE_LINES, write_pdf  # noqa: E402
 @pytest.fixture
 def bundle(tmp_path):
     services = tmp_path / "Services"
-    return qa.install(Path("/opt/doc-namer/bin/doc-namer"), services, flush=False)
+    return qa.install(
+        Path("/opt/doc-namer/bin/doc-namer"), services, flush=False, write_config=False
+    )
 
 
 def test_bundle_layout(bundle):
@@ -53,15 +55,15 @@ def test_wflow_passes_selection_as_arguments(bundle):
 
 def test_install_replaces_an_existing_bundle(tmp_path):
     services = tmp_path / "Services"
-    first = qa.install(Path("/old/doc-namer"), services, flush=False)
+    first = qa.install(Path("/old/doc-namer"), services, flush=False, write_config=False)
     (first / "Contents" / "stale.txt").write_text("x", encoding="utf-8")
-    second = qa.install(Path("/new/doc-namer"), services, flush=False)
+    second = qa.install(Path("/new/doc-namer"), services, flush=False, write_config=False)
     assert not (second / "Contents" / "stale.txt").exists()
     wflow = plistlib.loads((second / "Contents" / "document.wflow").read_bytes())
     assert "/new/doc-namer" in wflow["actions"][0]["action"]["ActionParameters"]["COMMAND_STRING"]
 
 
-def _run_embedded(services, work, targets, answer="リネーム"):
+def _run_embedded(services, work, targets, answer="リネーム", home=None):
     """バンドルに埋め込まれたシェルスクリプトを、osascript を差し替えて動かす。"""
     wflow = plistlib.loads(
         (services / "請求書をリネーム.workflow" / "Contents" / "document.wflow").read_bytes()
@@ -85,6 +87,8 @@ def _run_embedded(services, work, targets, answer="リネーム"):
     stub.chmod(0o755)
 
     env = {**os.environ, "PATH": f"{stub_dir}:{os.environ['PATH']}"}
+    if home is not None:
+        env["HOME"] = str(home)
     result = subprocess.run(
         ["bash", str(script_path), *[str(t) for t in targets]],
         capture_output=True,
@@ -94,12 +98,12 @@ def _run_embedded(services, work, targets, answer="リネーム"):
     return result, dialogs
 
 
-def test_embedded_script_renames_selection_in_place(bundle_script_env):
+def test_embedded_script_renames_selection_in_place(bundle_script_env, fake_home):
     services, work = bundle_script_env
     a = write_pdf(work / "scan1.pdf", INVOICE_LINES)
     b = write_pdf(work / "scan2.pdf", NOTICE_LINES)
 
-    result, dialogs = _run_embedded(services, work, [a, b])
+    result, dialogs = _run_embedded(services, work, [a, b], home=fake_home)
 
     assert result.returncode == 0, result.stderr.decode()
     # 選択したファイルがその場で変わる（コピーではない）
@@ -113,23 +117,23 @@ def test_embedded_script_renames_selection_in_place(bundle_script_env):
     assert "2 件をこの名前に変更します" in dialogs
 
 
-def test_embedded_script_does_nothing_when_cancelled(bundle_script_env):
+def test_embedded_script_does_nothing_when_cancelled(bundle_script_env, fake_home):
     services, work = bundle_script_env
     a = write_pdf(work / "scan1.pdf", INVOICE_LINES)
 
-    result, _ = _run_embedded(services, work, [a], answer="キャンセル")
+    result, _ = _run_embedded(services, work, [a], answer="キャンセル", home=fake_home)
 
     assert result.returncode == 0, result.stderr.decode()
     assert a.exists()
     assert not (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
 
 
-def test_embedded_script_leaves_unreadable_files_alone(bundle_script_env):
+def test_embedded_script_leaves_unreadable_files_alone(bundle_script_env, fake_home):
     services, work = bundle_script_env
     good = write_pdf(work / "scan1.pdf", INVOICE_LINES)
     other = write_pdf(work / "quote.pdf", [(60, 90, "見積書", 20)])
 
-    result, dialogs = _run_embedded(services, work, [good, other])
+    result, dialogs = _run_embedded(services, work, [good, other], home=fake_home)
 
     assert result.returncode == 0, result.stderr.decode()
     assert other.exists()
@@ -137,21 +141,21 @@ def test_embedded_script_leaves_unreadable_files_alone(bundle_script_env):
     assert "1 件は読み取れないためそのままにします" in dialogs
 
 
-def test_embedded_script_handles_a_folder_argument(bundle_script_env):
+def test_embedded_script_handles_a_folder_argument(bundle_script_env, fake_home):
     services, work = bundle_script_env
     write_pdf(work / "scan1.pdf", INVOICE_LINES)
 
-    result, _ = _run_embedded(services, work, [work])
+    result, _ = _run_embedded(services, work, [work], home=fake_home)
 
     assert result.returncode == 0, result.stderr.decode()
     assert (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
 
 
-def test_embedded_script_is_quiet_when_nothing_matches(bundle_script_env):
+def test_embedded_script_is_quiet_when_nothing_matches(bundle_script_env, fake_home):
     services, work = bundle_script_env
     write_pdf(work / "quote.pdf", [(60, 90, "見積書", 20)])
 
-    result, dialogs = _run_embedded(services, work, [work])
+    result, dialogs = _run_embedded(services, work, [work], home=fake_home)
 
     assert result.returncode == 0, result.stderr.decode()
     # 確認ダイアログは出さず、通知だけで終わる
@@ -160,12 +164,28 @@ def test_embedded_script_is_quiet_when_nothing_matches(bundle_script_env):
 
 
 @pytest.fixture
-def bundle_script_env(tmp_path):
-    services = tmp_path / "Services"
+def doc_namer_cmd():
     cmd = Path(sys.executable).parent / "doc-namer"
     if not cmd.exists():
         pytest.skip("doc-namer コマンドが未インストール")
-    qa.install(cmd, services, flush=False)
+    return cmd
+
+
+@pytest.fixture
+def fake_home(tmp_path):
+    """本物の $HOME を汚さないよう、テスト用のホームを用意する。"""
+    home = tmp_path / "home"
+    (home / ".config" / "doc-namer").mkdir(parents=True)
+    return home
+
+
+@pytest.fixture
+def bundle_script_env(tmp_path, fake_home, doc_namer_cmd):
+    services = tmp_path / "Services"
+    qa.install(doc_namer_cmd, services, flush=False, write_config=False)
+    (fake_home / ".config" / "doc-namer" / "command").write_text(
+        str(doc_namer_cmd), encoding="utf-8"
+    )
     work = tmp_path / "請求書"
     work.mkdir()
     return services, work
@@ -174,7 +194,7 @@ def bundle_script_env(tmp_path):
 def test_install_survives_missing_pbs(tmp_path):
     """pbs が無い環境でも、バンドルの生成自体は成功する。"""
     services = tmp_path / "Services"
-    bundle = qa.install(Path("/opt/doc-namer"), services, flush=True)
+    bundle = qa.install(Path("/opt/doc-namer"), services, flush=True, write_config=False)
     assert (bundle / "Contents" / "document.wflow").is_file()
 
 
@@ -190,3 +210,43 @@ def test_info_plist_has_the_keys_finder_needs(bundle):
     service = plistlib.loads((bundle / "Contents" / "Info.plist").read_bytes())["NSServices"][0]
     for key in ("NSUUID", "NSIconName", "NSBackgroundColorName"):
         assert key in service, key
+
+
+def test_shipped_bundle_reads_command_from_config(tmp_path, fake_home, doc_namer_cmd):
+    """配布用バンドル（パスが焼き込まれていない）でも設定ファイルから解決できる。"""
+    services = tmp_path / "Services"
+    qa.install(Path("/does/not/exist"), services, flush=False, write_config=False)
+    (fake_home / ".config" / "doc-namer" / "command").write_text(
+        str(doc_namer_cmd), encoding="utf-8"
+    )
+    work = tmp_path / "請求書"
+    work.mkdir()
+    write_pdf(work / "scan.pdf", INVOICE_LINES)
+
+    result, _ = _run_embedded(services, work, [work], home=fake_home)
+
+    assert result.returncode == 0, result.stderr.decode()
+    assert (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
+
+
+def test_bundle_warns_when_setup_has_not_run(tmp_path, fake_home):
+    """doc-namer が見つからないときは、黙って失敗せず案内を出す。"""
+    services = tmp_path / "Services"
+    qa.install(Path("/does/not/exist"), services, flush=False, write_config=False)
+    work = tmp_path / "請求書"
+    work.mkdir()
+    (work / "dummy.pdf").write_bytes(b"%PDF-1.4\n")
+
+    result, dialogs = _run_embedded(services, work, [work], home=fake_home)
+
+    assert result.returncode == 1
+    assert "セットアップが必要です" in dialogs
+
+
+def test_install_writes_the_command_path(tmp_path, monkeypatch, doc_namer_cmd):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    qa.install(doc_namer_cmd, tmp_path / "Services", flush=False)
+    conf = home / ".config" / "doc-namer" / "command"
+    assert conf.read_text(encoding="utf-8") == str(doc_namer_cmd)
