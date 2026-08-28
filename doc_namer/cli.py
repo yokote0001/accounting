@@ -65,6 +65,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="抽出結果を JSON で出力する"
     )
     parser.add_argument(
+        "--dump-text",
+        action="store_true",
+        help="PDF から読み取った本文と判定結果を表示する（うまくいかないときの調査用）",
+    )
+    parser.add_argument(
         "-r", "--recursive", action="store_true", help="フォルダを再帰的に探す"
     )
     parser.add_argument(
@@ -97,6 +102,22 @@ def main(argv: list[str] | None = None) -> int:
             failures += 1
             print(f"[NG] {pdf.name}: 読み取りに失敗しました ({exc})", file=sys.stderr)
             continue
+
+        if args.dump_text:
+            print(f"===== {pdf.name} =====")
+            print(f"書類種別: {doc.doc_type.label if doc.doc_type else '判定できず'}")
+            print(f"宛名    : {doc.recipient or '見つからず'}")
+            print(
+                "日付    : "
+                + (
+                    f"{doc.year}年{doc.month}月{doc.day}日（{doc.date_label}）"
+                    if doc.month
+                    else "見つからず"
+                )
+            )
+            print("----- PDF から読み取った本文 -----")
+            print(doc.text)
+            print("=" * 40)
 
         missing = missing_fields(doc, config)
         if missing:

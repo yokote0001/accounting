@@ -111,6 +111,7 @@ doc-namer a.pdf b.pdf --move
 | `-r, --recursive` | フォルダを再帰的に探す |
 | `--overwrite` | 同名ファイルを上書き（既定は ` (2)` を付けて回避） |
 | `--json` | 読み取った宛名・日付などを JSON で出力 |
+| `--dump-text` | PDF から読み取った本文と判定結果を表示（調査用） |
 | `-c, --config` | 設定 TOML のパス（既定: `config.toml`） |
 
 ## 何を読み取っているか

@@ -128,3 +128,22 @@ def test_cli_ignores_non_pdf_files_in_a_folder(tmp_path, capsys):
     assert main([str(work), "-o", str(out)]) == 0
     assert "[NG]" not in capsys.readouterr().err
     assert len(list(out.glob("*"))) == 1
+
+
+def test_dump_text_shows_what_was_read(tmp_path, invoice_pdf, capsys):
+    out = tmp_path / "out"
+    main([str(invoice_pdf), "-o", str(out), "--dry-run", "--dump-text"])
+    printed = capsys.readouterr().out
+    assert "書類種別: 請求書" in printed
+    assert "宛名    : 合同会社がっく 御中" in printed
+    assert "2026年7月31日（ご請求日）" in printed
+    # 本文そのものも出す
+    assert "ABCmovie" in printed
+
+
+def test_dump_text_works_for_unrecognised_pdf(tmp_path, capsys):
+    other = write_pdf(tmp_path / "quote.pdf", [(60, 90, "見積書", 20)])
+    main([str(other), "-o", str(tmp_path / "out"), "--dry-run", "--dump-text"])
+    printed = capsys.readouterr().out
+    assert "書類種別: 判定できず" in printed
+    assert "見積書" in printed
