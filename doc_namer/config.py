@@ -9,7 +9,19 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.toml"
+# 設定ファイルを探す順番。先に見つかったものを使う。
+#   1. ~/.config/doc-namer/config.toml   （どこにインストールしても効く個人設定）
+#   2. リポジトリ直下の config.toml       （editable インストール時はこれが本体）
+USER_CONFIG_PATH = Path.home() / ".config" / "doc-namer" / "config.toml"
+REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.toml"
+
+
+def find_config() -> Path | None:
+    """既定の探索順で設定ファイルを探す。見つからなければ None。"""
+    for candidate in (USER_CONFIG_PATH, REPO_CONFIG_PATH):
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 @dataclass(frozen=True)
@@ -77,10 +89,13 @@ def load_config(path: Path | str | None = None) -> Config:
     設定ファイルを置くときは使う種別をすべて記述すること。
     """
     if path is None:
-        path = DEFAULT_CONFIG_PATH
-        if not Path(path).exists():
+        found = find_config()
+        if found is None:
             return DEFAULT_CONFIG
+        path = found
     path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"設定ファイルが見つかりません: {path}")
     with path.open("rb") as fh:
         raw = tomllib.load(fh)
 

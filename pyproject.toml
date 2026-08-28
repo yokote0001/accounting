@@ -1,0 +1,22 @@
+[project]
+name = "doc-namer"
+version = "0.1.0"
+description = "請求書・支払通知書 PDF の中身からファイル名を組み立てて出力し直す"
+requires-python = ">=3.11"
+dependencies = ["pymupdf>=1.24"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+doc-namer = "doc_namer.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["doc_namer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -4,4 +4,6 @@ __pycache__/
 .venv/
 venv/
 out/
+リネーム済み/
 *.pdf
+*.egg-info/

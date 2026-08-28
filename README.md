@@ -9,25 +9,56 @@ Fairy effect の雛形で作った PDF を読み取り、
 | 請求書 | `7月ご請求 合同会社がっく 御中.pdf` |
 | 支払通知書 | `支払通知書 スタジオ コンテナ 御中.pdf` |
 
-## 使い方
+## 使い方（Mac・ターミナル不要）
+
+### 1. 最初に1回だけ
+
+**「セットアップ.command」をダブルクリック** します。
+Python の仮想環境を作り、必要なライブラリを入れます（数分かかります）。
+
+> 「開発元を確認できないため開けません」と出たら、ファイルを **右クリック →「開く」**
+> を選び、確認ダイアログで「開く」を押してください（初回のみ）。
+
+Python 3.11 以上が必要です。入っていない場合はメッセージが出るので、
+[python.org](https://www.python.org/downloads/macos/) からインストールしてください。
+
+### 2. 毎回の使い方
+
+**「リネーム.command」をダブルクリック** します。
+
+1. 「PDF の入ったフォルダをドラッグして Enter」と聞かれます
+2. Finder からフォルダ（または PDF ファイル）をウィンドウにドラッグして Enter
+3. **こう変わりますという一覧が出ます**（この時点ではまだ何も書き込みません）
+4. `y` + Enter で実行。フォルダ内の `リネーム済み` に出力され、自動で開きます
+
+元のファイルはコピー元として残るので、失敗しても元に戻せます。
+
+このファイルは Dock やデスクトップにエイリアスを置いておくと便利です
+（右クリック →「エイリアスを作成」）。
+
+### 3. Finder の右クリックから使う（おすすめ）
+
+**「右クリックメニューに追加.command」をダブルクリック** すると、
+Finder のクイックアクションに「請求書をリネーム」が追加されます。
+
+以降は **Finder で PDF やフォルダを選んで右クリック →「クイックアクション」→
+「請求書をリネーム」** だけで、確認なしにその場でリネーム出力されます
+（出力先フォルダが自動で開きます）。
+
+メニューに出てこない場合は、システム設定 →「一般」→「ログイン項目と機能拡張」→
+「Finder機能拡張」で「請求書をリネーム」を有効にしてください。
+
+### 4. ターミナルから使う
+
+セットアップ後は `doc-namer` コマンドが使えます。
 
 ```bash
-pip install -r requirements.txt
+source .venv/bin/activate
 
-# まず結果だけ確認（何も書き込まない）
-python -m doc_namer ~/Desktop/請求書 --dry-run
-
-# out/ フォルダに新しい名前でコピー
-python -m doc_namer ~/Desktop/請求書
-
-# 元ファイルをその場でリネーム
-python -m doc_namer ~/Desktop/請求書 --move
-```
-
-ファイルを直接指定することもできます。
-
-```bash
-python -m doc_namer invoice1.pdf invoice2.pdf -o 出力先
+doc-namer ~/Desktop/請求書 --dry-run   # 結果だけ確認
+doc-namer ~/Desktop/請求書             # out/ に新しい名前でコピー
+doc-namer ~/Desktop/請求書 --move      # 元ファイルをその場でリネーム
+doc-namer a.pdf b.pdf -o 出力先
 ```
 
 ### オプション
@@ -93,14 +124,19 @@ template = "{label} {recipient}"               # 支払通知書 スタジオ �
 | `{ym}` | `202607` |
 | `{label}` / `{type}` | `請求書` / `invoice` |
 
+設定ファイルは次の順で探します。先に見つかったほうが使われます。
+
+1. `~/.config/doc-namer/config.toml`（どこにインストールしても効く個人設定）
+2. このリポジトリ直下の `config.toml`
+
 見積書など新しい書類を増やすときは `[document_types.〇〇]` を足して、
 `detect` / `date_labels` / `template` / `priority` を書きます。
 
 ## テスト
 
 ```bash
-pip install pytest
-python -m pytest tests -q
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/python -m pytest tests -q
 ```
 
 PDF を使う end-to-end テストも含め、テスト用の PDF はその場で生成するので、
