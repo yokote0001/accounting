@@ -37,7 +37,7 @@ LOG="$HOME/Library/Logs/doc-namer.log"
 mkdir -p "$(dirname "$LOG")"
 
 if [ ! -x "$CMD" ]; then
-  osascript -e 'display alert "セットアップが必要です" message "先に セットアップ.command を実行してください。"' >/dev/null 2>&1
+  osascript -e 'display alert "セットアップが必要です" message "先に setup.command を実行してください。"' >/dev/null 2>&1
   exit 1
 fi
 

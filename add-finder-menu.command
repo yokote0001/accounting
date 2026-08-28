@@ -25,7 +25,7 @@ fi
 CMD="$(pwd)/.venv/bin/doc-namer"
 if [ ! -x "$CMD" ]; then
   echo "✗ まだセットアップされていません。"
-  echo "  先に「セットアップ.command」をダブルクリックしてください。"
+  echo "  先に「setup.command」をダブルクリックしてください。"
   finish 1
 fi
 

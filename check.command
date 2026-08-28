@@ -1,6 +1,6 @@
 #!/bin/bash
 # 右クリックメニューに「請求書をリネーム」が出ないときの調査用。
-# ターミナルで  bash 診断.command  として実行し、出力をそのまま共有してください。
+# ターミナルで  bash check.command  として実行し、出力をそのまま共有してください。
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 
@@ -24,7 +24,7 @@ if [ -x "./.venv/bin/doc-namer" ]; then
     echo "  ✗ doc-namer が実行できない"
   fi
 else
-  echo "  ✗ doc-namer がない（セットアップ.command が未実行）"
+  echo "  ✗ doc-namer がない（setup.command が未実行）"
 fi
 echo
 

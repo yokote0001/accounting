@@ -6,7 +6,7 @@
 # ターミナルを開いて、次のように実行してください（bash と半角スペースを
 # 打ってから、このファイルを Finder からドラッグして Enter）。
 #
-#   bash /path/to/セットアップ.command
+#   bash /path/to/setup.command
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 
@@ -74,7 +74,7 @@ if [ "$(uname)" = "Darwin" ]; then
       echo "   (b) このフォルダの「請求書をリネーム.workflow」をダブルクリックし、"
       echo "       「インストール」を押す"
       echo
-      echo "  それでも駄目なら「bash 診断.command」の出力を共有してください。"
+      echo "  それでも駄目なら「bash check.command」の出力を共有してください。"
       finish 0
     fi
     echo
