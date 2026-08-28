@@ -1,6 +1,6 @@
 #!/bin/bash
-# ダブルクリックすると、PDF の入ったフォルダを聞かれます。
-# Finder からフォルダをこのウィンドウにドラッグして Enter を押してください。
+# ダブルクリックすると、PDF の入ったフォルダ / ファイルを聞かれます。
+# Finder からドラッグして Enter を押すと、その場でリネームします。
 #
 # 引数としてファイル / フォルダを渡すこともできます（右クリックメニューから呼ばれる形）。
 set -uo pipefail
@@ -61,18 +61,10 @@ if [ ! -e "$first" ]; then
   finish 1
 fi
 
-# 出力先は、入力フォルダ（ファイルならその親）の中の「リネーム済み」
-if [ -d "$first" ]; then
-  base="$first"
-else
-  base="$(dirname "$first")"
-fi
-OUT="$base/リネーム済み"
-
 echo
 echo "▸ こう変わります（この時点ではまだ何も書き込みません）"
 echo "----------------------------------------"
-"$CMD" "${targets[@]}" --dry-run --out-dir "$OUT"
+"$CMD" "${targets[@]}" --move --dry-run
 status=$?
 echo "----------------------------------------"
 
@@ -92,9 +84,13 @@ if [ "$INTERACTIVE" = "1" ]; then
 fi
 
 echo
-"$CMD" "${targets[@]}" --out-dir "$OUT"
+"$CMD" "${targets[@]}" --move
 
 echo
-echo "✓ 出力先: $OUT"
-command -v open >/dev/null 2>&1 && open "$OUT"
+echo "✓ リネームしました"
+if [ -d "$first" ]; then
+  command -v open >/dev/null 2>&1 && open "$first"
+else
+  command -v open >/dev/null 2>&1 && open "$(dirname "$first")"
+fi
 finish 0

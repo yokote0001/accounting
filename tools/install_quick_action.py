@@ -20,6 +20,7 @@ SERVICES_DIR = Path.home() / "Library" / "Services"
 # クイックアクションが実行するシェルスクリプト。
 # inputMethod=1（引数として渡す）なので、選択されたパスが "$@" に入る。
 SHELL_SCRIPT = r"""#!/bin/bash
+# Finder で選択された PDF を、その場でリネームする。
 set -uo pipefail
 
 CMD="{cmd}"
@@ -28,31 +29,45 @@ mkdir -p "$(dirname "$LOG")"
 
 [ "$#" -eq 0 ] && exit 0
 
-first="$1"
-if [ -d "$first" ]; then
-  base="$first"
-else
-  base="$(dirname "$first")"
+notify() {{
+  osascript -e "display notification \"$1\" with title \"請求書をリネーム\"" >/dev/null 2>&1
+}}
+
+# --move --dry-run で「どう変わるか」を先に取る
+plan=$("$CMD" "$@" --move --dry-run 2>/dev/null)
+skipped=$("$CMD" "$@" --move --dry-run 2>&1 >/dev/null | grep -c "\[NG\]")
+
+if [ -z "$plan" ]; then
+  notify "リネームできる請求書・支払通知書がありませんでした"
+  exit 0
 fi
-DEST="$base/リネーム済み"
+
+count=$(printf '%s\n' "$plan" | grep -c "^\[DRY\]")
+names=$(printf '%s\n' "$plan" | sed 's/.*  ->  //' | while IFS= read -r p; do basename "$p"; done)
+preview=$(printf '%s\n' "$names" | head -10)
+[ "$count" -gt 10 ] && preview="$preview
+… ほか $((count - 10)) 件"
+
+message="$count 件をこの名前に変更します:
+
+$preview"
+[ "$skipped" -gt 0 ] && message="$message
+
+（$skipped 件は読み取れないためそのままにします）"
+
+answer=$(osascript -e "display dialog \"$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/\"/\\\"/g')\" with title \"請求書をリネーム\" buttons {{\"キャンセル\", \"リネーム\"}} default button \"リネーム\"" 2>/dev/null)
+
+case "$answer" in
+  *リネーム*) ;;
+  *) exit 0 ;;
+esac
 
 {{
   echo "=== $(date '+%Y-%m-%d %H:%M:%S') ==="
-  "$CMD" "$@" --out-dir "$DEST"
+  "$CMD" "$@" --move
 }} >>"$LOG" 2>&1
-status=$?
 
-count=0
-[ -d "$DEST" ] && count=$(ls -1 "$DEST"/*.pdf 2>/dev/null | wc -l | tr -d ' ')
-
-if [ "$status" -eq 0 ]; then
-  msg="$count 件を出力しました"
-else
-  msg="$count 件を出力（読み取れないファイルがありました）"
-fi
-
-osascript -e "display notification \"$msg\" with title \"請求書をリネーム\"" >/dev/null 2>&1
-[ -d "$DEST" ] && open "$DEST"
+notify "$count 件をリネームしました"
 """
 
 

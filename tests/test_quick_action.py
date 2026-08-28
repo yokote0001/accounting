@@ -1,5 +1,6 @@
 """クイックアクション（.workflow バンドル）の生成テスト。"""
 
+import os
 import plistlib
 import subprocess
 import sys
@@ -60,28 +61,102 @@ def test_install_replaces_an_existing_bundle(tmp_path):
     assert "/new/doc-namer" in wflow["actions"][0]["action"]["ActionParameters"]["COMMAND_STRING"]
 
 
-def test_embedded_script_renames_a_folder(tmp_path, bundle_script_env):
-    """バンドルに埋め込まれたシェルスクリプトを実際に動かす。"""
-    services, work = bundle_script_env
-    write_pdf(work / "a.pdf", INVOICE_LINES)
-    write_pdf(work / "b.pdf", NOTICE_LINES)
-
+def _run_embedded(services, work, targets, answer="リネーム"):
+    """バンドルに埋め込まれたシェルスクリプトを、osascript を差し替えて動かす。"""
     wflow = plistlib.loads(
         (services / "請求書をリネーム.workflow" / "Contents" / "document.wflow").read_bytes()
     )
     script = wflow["actions"][0]["action"]["ActionParameters"]["COMMAND_STRING"]
     script_path = work.parent / "qa.sh"
-    # macOS 専用の open / osascript はテスト環境に無いので無効化する
-    script_path.write_text(
-        script.replace("open \"$DEST\"", ":").replace("osascript", "true osascript"),
+    script_path.write_text(script, encoding="utf-8")
+
+    # macOS の osascript が無いので、ダイアログの応答を返すスタブを PATH に置く
+    stub_dir = work.parent / "stub"
+    stub_dir.mkdir(exist_ok=True)
+    log = work.parent / "osascript.log"
+    stub = stub_dir / "osascript"
+    stub.write_text(
+        "#!/bin/bash\n"
+        f'printf "%s\\n" "$*" >> "{log}"\n'
+        'if [[ "$*" == *"display dialog"* ]]; then '
+        f'echo "button returned:{answer}"; fi\n',
         encoding="utf-8",
     )
+    stub.chmod(0o755)
 
-    result = subprocess.run(["bash", str(script_path), str(work)], capture_output=True)
+    env = {**os.environ, "PATH": f"{stub_dir}:{os.environ['PATH']}"}
+    result = subprocess.run(
+        ["bash", str(script_path), *[str(t) for t in targets]],
+        capture_output=True,
+        env=env,
+    )
+    dialogs = log.read_text(encoding="utf-8") if log.exists() else ""
+    return result, dialogs
+
+
+def test_embedded_script_renames_selection_in_place(bundle_script_env):
+    services, work = bundle_script_env
+    a = write_pdf(work / "scan1.pdf", INVOICE_LINES)
+    b = write_pdf(work / "scan2.pdf", NOTICE_LINES)
+
+    result, dialogs = _run_embedded(services, work, [a, b])
+
     assert result.returncode == 0, result.stderr.decode()
-    out = work / "リネーム済み"
-    assert (out / "7月ご請求 合同会社がっく 御中.pdf").exists()
-    assert (out / "支払通知書 スタジオ コンテナ 御中.pdf").exists()
+    # 選択したファイルがその場で変わる（コピーではない）
+    assert not a.exists()
+    assert not b.exists()
+    assert (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
+    assert (work / "支払通知書 スタジオ コンテナ 御中.pdf").exists()
+    assert "リネーム済み" not in [p.name for p in work.iterdir()]
+    # 実行前に確認ダイアログを出している
+    assert "display dialog" in dialogs
+    assert "2 件をこの名前に変更します" in dialogs
+
+
+def test_embedded_script_does_nothing_when_cancelled(bundle_script_env):
+    services, work = bundle_script_env
+    a = write_pdf(work / "scan1.pdf", INVOICE_LINES)
+
+    result, _ = _run_embedded(services, work, [a], answer="キャンセル")
+
+    assert result.returncode == 0, result.stderr.decode()
+    assert a.exists()
+    assert not (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
+
+
+def test_embedded_script_leaves_unreadable_files_alone(bundle_script_env):
+    services, work = bundle_script_env
+    good = write_pdf(work / "scan1.pdf", INVOICE_LINES)
+    other = write_pdf(work / "quote.pdf", [(60, 90, "見積書", 20)])
+
+    result, dialogs = _run_embedded(services, work, [good, other])
+
+    assert result.returncode == 0, result.stderr.decode()
+    assert other.exists()
+    assert (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
+    assert "1 件は読み取れないためそのままにします" in dialogs
+
+
+def test_embedded_script_handles_a_folder_argument(bundle_script_env):
+    services, work = bundle_script_env
+    write_pdf(work / "scan1.pdf", INVOICE_LINES)
+
+    result, _ = _run_embedded(services, work, [work])
+
+    assert result.returncode == 0, result.stderr.decode()
+    assert (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
+
+
+def test_embedded_script_is_quiet_when_nothing_matches(bundle_script_env):
+    services, work = bundle_script_env
+    write_pdf(work / "quote.pdf", [(60, 90, "見積書", 20)])
+
+    result, dialogs = _run_embedded(services, work, [work])
+
+    assert result.returncode == 0, result.stderr.decode()
+    # 確認ダイアログは出さず、通知だけで終わる
+    assert "display dialog" not in dialogs
+    assert "ありませんでした" in dialogs
 
 
 @pytest.fixture
