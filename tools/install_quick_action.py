@@ -71,20 +71,28 @@ notify "$count 件をリネームしました"
 """
 
 
-def build_info_plist() -> dict:
+def build_info_plist(service_uuid: str) -> dict:
+    """Automator が書き出す Quick Action の Info.plist と同じ形にする。
+
+    NSUUID / NSIconName / NSBackgroundColorName が無いと、サービスとして
+    登録されても Finder のメニューに出てこないことがある。
+    """
     return {
         "NSServices": [
             {
+                "NSBackgroundColorName": "background",
+                "NSIconName": "NSActionTemplate",
                 "NSMenuItem": {"default": SERVICE_NAME},
                 "NSMessage": "runWorkflowAsService",
                 "NSRequiredContext": {"NSApplicationIdentifier": "com.apple.finder"},
                 "NSSendFileTypes": ["public.item"],
+                "NSUUID": service_uuid,
             }
         ]
     }
 
 
-def build_wflow(script: str) -> dict:
+def build_wflow(script: str, service_uuid: str) -> dict:
     input_uuid = str(uuid.uuid4()).upper()
     output_uuid = str(uuid.uuid4()).upper()
     action_uuid = str(uuid.uuid4()).upper()
@@ -148,6 +156,13 @@ def build_wflow(script: str) -> dict:
         ],
         "connectors": {},
         "workflowMetaData": {
+            # Info.plist の NSUUID と一致させる
+            "serviceUUID": service_uuid,
+            "applicationBundleIDsByPath": {},
+            "applicationPaths": [],
+            "inputTypeIdentifier": "com.apple.Automator.fileSystemObject",
+            "outputTypeIdentifier": "com.apple.Automator.nothing",
+            "presentationMode": 11,
             "serviceApplicationBundleID": "com.apple.finder",
             "serviceApplicationPath": "/System/Library/CoreServices/Finder.app",
             "serviceInputTypeIdentifier": "com.apple.Automator.fileSystemObject",
@@ -166,21 +181,20 @@ def install(cmd_path: Path, services_dir: Path = SERVICES_DIR, flush: bool = Tru
         shutil.rmtree(bundle)
     contents.mkdir(parents=True)
 
+    service_uuid = str(uuid.uuid4()).upper()
     script = SHELL_SCRIPT.format(cmd=cmd_path)
-    (contents / "Info.plist").write_bytes(plistlib.dumps(build_info_plist()))
-    (contents / "document.wflow").write_bytes(plistlib.dumps(build_wflow(script)))
+    (contents / "Info.plist").write_bytes(plistlib.dumps(build_info_plist(service_uuid)))
+    (contents / "document.wflow").write_bytes(plistlib.dumps(build_wflow(script, service_uuid)))
 
     if flush:
         # サービス一覧を再読み込みさせる。
         # pbs が無い環境でもバンドル自体は出来ているので、失敗しても続ける。
-        try:
-            subprocess.run(
-                ["/System/Library/CoreServices/pbs", "-flush"],
-                check=False,
-                capture_output=True,
-            )
-        except OSError:
-            pass
+        pbs = "/System/Library/CoreServices/pbs"
+        for args in ([pbs, "-flush"], [pbs, "-update"]):
+            try:
+                subprocess.run(args, check=False, capture_output=True)
+            except OSError:
+                pass
     return bundle
 
 

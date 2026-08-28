@@ -176,3 +176,17 @@ def test_install_survives_missing_pbs(tmp_path):
     services = tmp_path / "Services"
     bundle = qa.install(Path("/opt/doc-namer"), services, flush=True)
     assert (bundle / "Contents" / "document.wflow").is_file()
+
+
+def test_service_uuid_is_shared_between_plists(bundle):
+    info = plistlib.loads((bundle / "Contents" / "Info.plist").read_bytes())
+    wflow = plistlib.loads((bundle / "Contents" / "document.wflow").read_bytes())
+    service_uuid = info["NSServices"][0]["NSUUID"]
+    assert service_uuid
+    assert wflow["workflowMetaData"]["serviceUUID"] == service_uuid
+
+
+def test_info_plist_has_the_keys_finder_needs(bundle):
+    service = plistlib.loads((bundle / "Contents" / "Info.plist").read_bytes())["NSServices"][0]
+    for key in ("NSUUID", "NSIconName", "NSBackgroundColorName"):
+        assert key in service, key
