@@ -171,12 +171,16 @@ def install(cmd_path: Path, services_dir: Path = SERVICES_DIR, flush: bool = Tru
     (contents / "document.wflow").write_bytes(plistlib.dumps(build_wflow(script)))
 
     if flush:
-        # サービス一覧を再読み込みさせる
-        subprocess.run(
-            ["/System/Library/CoreServices/pbs", "-flush"],
-            check=False,
-            capture_output=True,
-        )
+        # サービス一覧を再読み込みさせる。
+        # pbs が無い環境でもバンドル自体は出来ているので、失敗しても続ける。
+        try:
+            subprocess.run(
+                ["/System/Library/CoreServices/pbs", "-flush"],
+                check=False,
+                capture_output=True,
+            )
+        except OSError:
+            pass
     return bundle
 
 

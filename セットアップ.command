@@ -1,6 +1,12 @@
 #!/bin/bash
-# 最初に1回だけダブルクリックしてください。
-# Python の仮想環境を作り、doc-namer コマンドを使えるようにします。
+# 最初に1回だけ実行してください。
+# Python の環境を用意し、Finder の右クリックメニューまで登録します。
+#
+# ダウンロードした .command は macOS 15 以降 Finder からは起動できません。
+# ターミナルを開いて、次のように実行してください（bash と半角スペースを
+# 打ってから、このファイルを Finder からドラッグして Enter）。
+#
+#   bash /path/to/セットアップ.command
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 
@@ -32,7 +38,7 @@ if [ -z "$PY" ]; then
   echo "✗ Python 3.11 以上が見つかりませんでした。"
   echo
   echo "  https://www.python.org/downloads/macos/ から最新版をインストールしてから、"
-  echo "  もう一度このファイルをダブルクリックしてください。"
+  echo "  もう一度このファイルを実行してください。"
   finish 1
 fi
 
@@ -49,10 +55,37 @@ echo "▸ 必要なライブラリをインストール中（初回は数分か�
   finish 1
 }
 
+echo "✓ Python 環境の準備が完了しました"
 echo
-echo "✓ セットアップ完了"
-echo
-echo "  次からは「リネーム.command」をダブルクリックして使ってください。"
-echo "  Finder の右クリックメニューに入れたい場合は"
-echo "  「右クリックメニューに追加.command」をダブルクリックしてください。"
+
+# 続けて Finder の右クリックメニューにも登録する。
+# ここまで通れば、以降はターミナルを開く必要はない。
+if [ "$(uname)" = "Darwin" ]; then
+  echo "▸ Finder の右クリックメニューに登録中..."
+  if ./.venv/bin/python tools/install_quick_action.py "$(pwd)/.venv/bin/doc-namer"; then
+    echo
+    echo "=============================="
+    echo " ✓ すべて完了しました"
+    echo "=============================="
+    echo
+    echo "使い方:"
+    echo "  Finder で請求書の PDF を選び、右クリック →"
+    echo "  「クイックアクション」→「請求書をリネーム」"
+    echo
+    echo "  選んだファイルがその場でリネームされます。"
+    echo "  フォルダごと選んでも、複数選んでも大丈夫です。"
+    echo
+    echo "メニューに出てこないときは:"
+    echo "  システム設定 →「一般」→「ログイン項目と機能拡張」→「Finder機能拡張」"
+    echo "  で「請求書をリネーム」を有効にしてください。"
+  else
+    echo
+    echo "✗ 右クリックメニューの登録に失敗しました。"
+    echo "  ターミナルから doc-namer コマンドは使えます:"
+    echo "    $(pwd)/.venv/bin/doc-namer <フォルダ> --move"
+    finish 1
+  fi
+else
+  echo "  （右クリックメニューの登録は macOS 専用のためスキップしました）"
+fi
 finish 0

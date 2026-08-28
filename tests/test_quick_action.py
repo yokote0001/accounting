@@ -169,3 +169,10 @@ def bundle_script_env(tmp_path):
     work = tmp_path / "請求書"
     work.mkdir()
     return services, work
+
+
+def test_install_survives_missing_pbs(tmp_path):
+    """pbs が無い環境でも、バンドルの生成自体は成功する。"""
+    services = tmp_path / "Services"
+    bundle = qa.install(Path("/opt/doc-namer"), services, flush=True)
+    assert (bundle / "Contents" / "document.wflow").is_file()
