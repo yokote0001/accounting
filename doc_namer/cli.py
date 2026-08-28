@@ -19,8 +19,15 @@ def collect_pdfs(inputs: list[str], recursive: bool) -> list[Path]:
     for item in inputs:
         path = Path(item)
         if path.is_dir():
-            pattern = "**/*.pdf" if recursive else "*.pdf"
-            found.extend(sorted(p for p in path.glob(pattern) if p.is_file()))
+            # 拡張子の大文字小文字は問わない（.PDF で書き出す機器があるため）
+            pattern = "**/*" if recursive else "*"
+            found.extend(
+                sorted(
+                    p
+                    for p in path.glob(pattern)
+                    if p.is_file() and p.suffix.lower() == ".pdf"
+                )
+            )
         elif path.is_file():
             found.append(path)
         else:

@@ -150,3 +150,18 @@ def test_load_config_rejects_missing_template(tmp_path):
     config_file.write_text('[document_types.invoice]\nlabel = "請求書"\n', encoding="utf-8")
     with pytest.raises(ValueError):
         load_config(config_file)
+
+
+def test_extension_is_lowercased():
+    doc = make_doc("invoice", "合同会社がっく 御中", month=7)
+    doc = ExtractedDoc(
+        path=Path("SCAN001.PDF"),
+        doc_type=doc.doc_type,
+        recipient=doc.recipient,
+        year=doc.year,
+        month=doc.month,
+        day=doc.day,
+        date_label=doc.date_label,
+        text="",
+    )
+    assert build_filename(doc, DEFAULT_CONFIG).endswith(".pdf")

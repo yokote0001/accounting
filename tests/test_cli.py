@@ -104,3 +104,27 @@ def test_cli_reports_unrecognised_pdf(tmp_path, capsys):
     out = tmp_path / "out"
     assert main([str(other), "-o", str(out)]) == 1
     assert "[NG]" in capsys.readouterr().err
+
+
+def test_cli_finds_uppercase_pdf_extension(tmp_path):
+    work = tmp_path / "請求書"
+    work.mkdir()
+    write_pdf(work / "SCAN001.PDF", INVOICE_LINES)
+    out = tmp_path / "out"
+
+    assert main([str(work), "-o", str(out)]) == 0
+    assert (out / "7月ご請求 合同会社がっく 御中.pdf").exists()
+
+
+def test_cli_ignores_non_pdf_files_in_a_folder(tmp_path, capsys):
+    work = tmp_path / "請求書"
+    work.mkdir()
+    write_pdf(work / "scan.pdf", INVOICE_LINES)
+    (work / "memo.txt").write_text("x", encoding="utf-8")
+    (work / "photo.jpg").write_bytes(b"\xff\xd8\xff")
+    out = tmp_path / "out"
+
+    # PDF 以外は [NG] にせず、そもそも対象にしない
+    assert main([str(work), "-o", str(out)]) == 0
+    assert "[NG]" not in capsys.readouterr().err
+    assert len(list(out.glob("*"))) == 1

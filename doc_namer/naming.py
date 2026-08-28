@@ -104,7 +104,8 @@ def build_filename(doc: ExtractedDoc, config: Config = DEFAULT_CONFIG) -> str:
     if missing:
         raise ValueError(f"{doc.path.name}: {' / '.join(missing)} を特定できませんでした")
     stem = doc.doc_type.template.format(**build_fields(doc, config))
-    return sanitize(stem, config.replacement) + doc.path.suffix
+    # 拡張子は小文字に揃える（.PDF で来ても出力は .pdf）
+    return sanitize(stem, config.replacement) + doc.path.suffix.lower()
 
 
 def unique_path(directory: Path, filename: str) -> Path:

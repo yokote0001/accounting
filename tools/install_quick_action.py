@@ -52,7 +52,19 @@ plan=$("$CMD" "$@" --move --dry-run 2>/dev/null)
 skipped=$("$CMD" "$@" --move --dry-run 2>&1 >/dev/null | grep -c "\[NG\]")
 
 if [ -z "$plan" ]; then
-  notify "リネームできる請求書・支払通知書がありませんでした"
+  # 何も名前を作れなかった理由を伝える。
+  # 「PDFが選ばれていない」のか「読み取れなかった」のかで対処が違う。
+  {{
+    echo "=== $(date '+%Y-%m-%d %H:%M:%S') 対象なし ==="
+    echo "選択: $@"
+    "$CMD" "$@" --move --dry-run
+  }} >>"$LOG" 2>&1
+
+  if [ "$skipped" -gt 0 ]; then
+    notify "$skipped 件を請求書・支払通知書として読み取れませんでした"
+  else
+    notify "請求書・支払通知書の PDF が選ばれていません"
+  fi
   exit 0
 fi
 

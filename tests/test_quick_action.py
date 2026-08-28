@@ -151,7 +151,8 @@ def test_embedded_script_handles_a_folder_argument(bundle_script_env, fake_home)
     assert (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
 
 
-def test_embedded_script_is_quiet_when_nothing_matches(bundle_script_env, fake_home):
+def test_unreadable_selection_says_it_could_not_read_them(bundle_script_env, fake_home):
+    """読み取れなかった場合は件数を添えて伝える。"""
     services, work = bundle_script_env
     write_pdf(work / "quote.pdf", [(60, 90, "見積書", 20)])
 
@@ -160,7 +161,19 @@ def test_embedded_script_is_quiet_when_nothing_matches(bundle_script_env, fake_h
     assert result.returncode == 0, result.stderr.decode()
     # 確認ダイアログは出さず、通知だけで終わる
     assert "display dialog" not in dialogs
-    assert "ありませんでした" in dialogs
+    assert "1 件を請求書・支払通知書として読み取れませんでした" in dialogs
+
+
+def test_selection_without_pdfs_says_so(bundle_script_env, fake_home):
+    """PDF が1つも無い場合は、読み取り失敗とは別の案内を出す。"""
+    services, work = bundle_script_env
+    (work / "memo.txt").write_text("not a pdf", encoding="utf-8")
+
+    result, dialogs = _run_embedded(services, work, [work], home=fake_home)
+
+    assert result.returncode == 0, result.stderr.decode()
+    assert "display dialog" not in dialogs
+    assert "PDF が選ばれていません" in dialogs
 
 
 @pytest.fixture
