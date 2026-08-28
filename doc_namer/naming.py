@@ -4,12 +4,29 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from string import Formatter
 
 from .config import Config, DEFAULT_CONFIG
 from .extract import ExtractedDoc
 
 # ファイル名に使えない / 使うと事故りやすい文字
 _FORBIDDEN_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+# テンプレート変数 -> 足りないときに出すラベル
+_FIELD_LABELS = {
+    "recipient": "宛名",
+    "recipient_name": "宛名",
+    "honorific": "宛名",
+    "year": "日付",
+    "yy": "日付",
+    "month": "日付",
+    "month2": "日付",
+    "day": "日付",
+    "day2": "日付",
+    "ym": "日付",
+    "label": "書類種別",
+    "type": "書類種別",
+}
 
 
 def sanitize(name: str, replacement: str = "_") -> str:
@@ -47,12 +64,46 @@ def build_fields(doc: ExtractedDoc, config: Config = DEFAULT_CONFIG) -> dict[str
     }
 
 
+def template_fields(template: str) -> list[str]:
+    """テンプレートが使っている変数名を返す。`{month:02d}` の書式指定は除く。"""
+    names = []
+    for _, field_name, _, _ in Formatter().parse(template):
+        if not field_name:
+            continue
+        key = field_name.split(".")[0].split("[")[0]
+        if key not in names:
+            names.append(key)
+    return names
+
+
+def missing_fields(doc: ExtractedDoc, config: Config = DEFAULT_CONFIG) -> list[str]:
+    """テンプレートが必要とする情報のうち、読み取れなかったものを返す。
+
+    必要な情報はテンプレート次第。たとえば支払通知書のテンプレートが
+    `{label} {recipient}` なら、日付が読めなくても出力できる。
+    """
+    if doc.doc_type is None:
+        return ["書類種別"]
+    fields = build_fields(doc, config)
+    missing: list[str] = []
+    for key in template_fields(doc.doc_type.template):
+        if key not in fields:
+            raise ValueError(
+                f"{doc.doc_type.key}: テンプレートの {{{key}}} は使えない変数です"
+            )
+        if fields[key] in ("", None):
+            label = _FIELD_LABELS.get(key, key)
+            if label not in missing:
+                missing.append(label)
+    return missing
+
+
 def build_filename(doc: ExtractedDoc, config: Config = DEFAULT_CONFIG) -> str:
     """拡張子込みのファイル名を返す。"""
-    if doc.doc_type is None:
-        raise ValueError(f"{doc.path.name}: 書類種別を判定できませんでした")
-    fields = build_fields(doc, config)
-    stem = doc.doc_type.template.format(**fields)
+    missing = missing_fields(doc, config)
+    if missing:
+        raise ValueError(f"{doc.path.name}: {' / '.join(missing)} を特定できませんでした")
+    stem = doc.doc_type.template.format(**build_fields(doc, config))
     return sanitize(stem, config.replacement) + doc.path.suffix
 
 

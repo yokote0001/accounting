@@ -7,7 +7,7 @@ Fairy effect の雛形で作った PDF を読み取り、
 | 書類 | 既定のファイル名 |
 | --- | --- |
 | 請求書 | `7月ご請求 合同会社がっく 御中.pdf` |
-| 支払通知書 | `9月お支払い スタジオ コンテナ 御中.pdf` |
+| 支払通知書 | `支払通知書 スタジオ コンテナ 御中.pdf` |
 
 ## 使い方
 
@@ -56,6 +56,12 @@ python -m doc_namer invoice1.pdf invoice2.pdf -o 出力先
    請求書は**お支払い期限ではなく「ご請求日」の月**を使います。
    例）ご請求日 2026年7月31日 / お支払い期限 2026年8月31日 → `7月ご請求`
 
+   支払通知書は既定のテンプレートが月を使わないので、日付が読めなくても出力できます。
+
+**必要な情報はテンプレートが決めます。** `template` に `{month}` を書いていなければ
+日付は必須になりません。`{month}月お支払い {recipient}` に変えれば、その時点から
+日付が必須になります。
+
 読み取れなかった PDF はスキップして、理由を標準エラーに出します
 （処理はそこで止まりません）。
 
@@ -68,6 +74,10 @@ python -m doc_namer invoice1.pdf invoice2.pdf -o 出力先
 template = "{month}月ご請求 {recipient}"       # 7月ご請求 合同会社がっく 御中
 # template = "{ym}_請求書_{recipient_name}"   # 202607_請求書_合同会社がっく
 # template = "{year}年{month2}月請求 {recipient}"
+
+[document_types.payment_notice]
+template = "{label} {recipient}"               # 支払通知書 スタジオ コンテナ 御中
+# template = "{month}月お支払い {recipient}"   # 9月お支払い スタジオ コンテナ 御中
 ```
 
 使える変数:

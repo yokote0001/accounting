@@ -4,7 +4,14 @@ import pytest
 
 from doc_namer.config import DEFAULT_CONFIG, load_config
 from doc_namer.extract import ExtractedDoc
-from doc_namer.naming import build_fields, build_filename, sanitize, unique_path
+from doc_namer.naming import (
+    build_fields,
+    build_filename,
+    missing_fields,
+    sanitize,
+    template_fields,
+    unique_path,
+)
 
 
 def make_doc(type_key, recipient, year=2026, month=7, day=31):
@@ -25,9 +32,59 @@ def test_invoice_filename_matches_requested_format():
     assert build_filename(doc, DEFAULT_CONFIG) == "7月ご請求 合同会社がっく 御中.pdf"
 
 
-def test_payment_notice_filename():
+def test_payment_notice_filename_has_no_date():
     doc = make_doc("payment_notice", "スタジオ コンテナ 御中", month=9)
-    assert build_filename(doc, DEFAULT_CONFIG) == "9月お支払い スタジオ コンテナ 御中.pdf"
+    assert build_filename(doc, DEFAULT_CONFIG) == "支払通知書 スタジオ コンテナ 御中.pdf"
+
+
+def test_payment_notice_works_without_any_date():
+    # テンプレートが日付を使わないので、日付が読めなくても出力できる
+    doc = ExtractedDoc(
+        path=Path("x.pdf"),
+        doc_type=DEFAULT_CONFIG.get("payment_notice"),
+        recipient="スタジオ コンテナ 御中",
+        year=None,
+        month=None,
+        day=None,
+        date_label=None,
+        text="",
+    )
+    assert missing_fields(doc, DEFAULT_CONFIG) == []
+    assert build_filename(doc, DEFAULT_CONFIG) == "支払通知書 スタジオ コンテナ 御中.pdf"
+
+
+def test_invoice_still_needs_a_date():
+    doc = make_doc("invoice", "合同会社がっく 御中", year=None, month=None, day=None)
+    assert missing_fields(doc, DEFAULT_CONFIG) == ["日付"]
+    with pytest.raises(ValueError, match="日付"):
+        build_filename(doc, DEFAULT_CONFIG)
+
+
+def test_missing_recipient_is_reported():
+    doc = make_doc("payment_notice", None)
+    assert missing_fields(doc, DEFAULT_CONFIG) == ["宛名"]
+
+
+def test_template_fields_ignores_format_spec():
+    assert template_fields("{year}年{month2:>3}月 {recipient}") == [
+        "year",
+        "month2",
+        "recipient",
+    ]
+
+
+def test_unknown_placeholder_is_rejected(tmp_path):
+    config_file = tmp_path / "config.toml"
+    config_file.write_text(
+        '[document_types.invoice]\ndetect = ["請求書"]\ntemplate = "{nope} {recipient}"\n',
+        encoding="utf-8",
+    )
+    config = load_config(config_file)
+    doc = ExtractedDoc(
+        Path("x.pdf"), config.get("invoice"), "A 御中", 2026, 7, 31, "ご請求日", ""
+    )
+    with pytest.raises(ValueError, match="nope"):
+        build_filename(doc, config)
 
 
 def test_month_is_not_zero_padded():
@@ -45,6 +102,7 @@ def test_build_fields_splits_honorific():
 
 def test_build_filename_requires_doc_type():
     doc = ExtractedDoc(Path("a.pdf"), None, "株式会社エー 御中", 2026, 7, 31, None, "")
+    assert missing_fields(doc, DEFAULT_CONFIG) == ["書類種別"]
     with pytest.raises(ValueError):
         build_filename(doc, DEFAULT_CONFIG)
 

@@ -68,7 +68,7 @@ def test_cli_copies_with_new_names(tmp_path, invoice_pdf, notice_pdf):
     out = tmp_path / "out"
     assert main([str(invoice_pdf), str(notice_pdf), "-o", str(out)]) == 0
     assert (out / "7月ご請求 合同会社がっく 御中.pdf").exists()
-    assert (out / "9月お支払い スタジオ コンテナ 御中.pdf").exists()
+    assert (out / "支払通知書 スタジオ コンテナ 御中.pdf").exists()
     # コピーなので元ファイルは残る
     assert invoice_pdf.exists()
 

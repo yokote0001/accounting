@@ -35,19 +35,8 @@ class ExtractedDoc:
     date_label: str | None
     text: str
 
-    @property
-    def ok(self) -> bool:
-        return self.doc_type is not None and self.recipient is not None and self.month is not None
-
-    def missing(self) -> list[str]:
-        out = []
-        if self.doc_type is None:
-            out.append("書類種別")
-        if self.recipient is None:
-            out.append("宛名")
-        if self.month is None:
-            out.append("日付")
-        return out
+    # 何が揃っていれば足りるかは命名テンプレート次第なので、
+    # 判定は naming.missing_fields() が持つ。
 
 
 def read_lines(path: Path | str) -> list[TextLine]:

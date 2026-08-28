@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .config import load_config
 from .extract import extract
-from .naming import build_filename, unique_path
+from .naming import build_filename, missing_fields, unique_path
 
 
 def collect_pdfs(inputs: list[str], recursive: bool) -> list[Path]:
@@ -91,10 +91,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[NG] {pdf.name}: 読み取りに失敗しました ({exc})", file=sys.stderr)
             continue
 
-        if not doc.ok:
+        missing = missing_fields(doc, config)
+        if missing:
             failures += 1
             print(
-                f"[NG] {pdf.name}: {' / '.join(doc.missing())} を特定できませんでした",
+                f"[NG] {pdf.name}: {' / '.join(missing)} を特定できませんでした",
                 file=sys.stderr,
             )
             continue

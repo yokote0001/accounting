@@ -52,7 +52,8 @@ DEFAULT_DOC_TYPES: tuple[DocTypeRule, ...] = (
         label="支払通知書",
         detect=("支払通知書", "PAYMENT NOTICE"),
         date_labels=("お支払い日", "お支払日", "支払日", "ご請求日"),
-        template="{month}月お支払い {recipient}",
+        # 支払通知書は月を入れない（日付が読めなくても出力できる）
+        template="{label} {recipient}",
         # 「請求」より先に判定する（支払通知書に請求の語が混ざっても取り違えないため）
         priority=10,
     ),
