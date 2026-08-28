@@ -1,0 +1,38 @@
+# 書類種別ごとの判定ルールと、出力ファイル名のテンプレート。
+#
+# テンプレートで使える変数:
+#   {recipient}      宛名（敬称込み）      例: 合同会社がっく 御中
+#   {recipient_name} 宛名（敬称なし）      例: 合同会社がっく
+#   {honorific}      敬称                  例: 御中
+#   {month}          月（ゼロ埋めなし）    例: 7
+#   {month2}         月（2 桁）            例: 07
+#   {year}           年（4 桁）            例: 2026
+#   {yy}             年（下 2 桁）         例: 26
+#   {day} {day2}     日
+#   {ym}             年月                  例: 202607
+#   {label}          書類種別の表示名      例: 請求書
+#   {type}           書類種別のキー        例: invoice
+#
+# date_labels は「何月」を決めるために上から順に探す日付ラベル。
+# detect は本文にこの語が含まれていればその種別と判定する（大文字小文字は無視）。
+# priority が小さい種別から先に判定される。
+
+[general]
+# 宛名として認める敬称
+honorifics = ["御中", "様"]
+# ファイル名に使えない文字の置換先
+replacement = "_"
+
+[document_types.payment_notice]
+label = "支払通知書"
+detect = ["支払通知書", "PAYMENT NOTICE"]
+date_labels = ["お支払い日", "お支払日", "支払日", "ご請求日"]
+template = "{month}月お支払い {recipient}"
+priority = 10
+
+[document_types.invoice]
+label = "請求書"
+detect = ["請求書", "INVOICE", "ご請求金額", "ご請求日"]
+date_labels = ["ご請求日", "請求日", "発行日", "お支払い期限"]
+template = "{month}月ご請求 {recipient}"
+priority = 20
