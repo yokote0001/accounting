@@ -32,13 +32,13 @@ def test_invoice_filename_matches_requested_format():
     assert build_filename(doc, DEFAULT_CONFIG) == "7月ご請求 合同会社がっく 御中.pdf"
 
 
-def test_payment_notice_filename_has_no_date():
+def test_payment_notice_filename_starts_with_the_month():
     doc = make_doc("payment_notice", "スタジオ コンテナ 御中", month=9)
-    assert build_filename(doc, DEFAULT_CONFIG) == "支払通知書 スタジオ コンテナ 御中.pdf"
+    assert build_filename(doc, DEFAULT_CONFIG) == "9月支払通知書 スタジオ コンテナ 御中.pdf"
 
 
-def test_payment_notice_works_without_any_date():
-    # テンプレートが日付を使わないので、日付が読めなくても出力できる
+def test_payment_notice_needs_a_date_now():
+    # 月を使うようになったので、日付が読めないものは出力できない
     doc = ExtractedDoc(
         path=Path("x.pdf"),
         doc_type=DEFAULT_CONFIG.get("payment_notice"),
@@ -49,8 +49,7 @@ def test_payment_notice_works_without_any_date():
         date_label=None,
         text="",
     )
-    assert missing_fields(doc, DEFAULT_CONFIG) == []
-    assert build_filename(doc, DEFAULT_CONFIG) == "支払通知書 スタジオ コンテナ 御中.pdf"
+    assert missing_fields(doc, DEFAULT_CONFIG) == ["日付"]
 
 
 def test_invoice_still_needs_a_date():

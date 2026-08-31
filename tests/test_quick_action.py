@@ -110,7 +110,7 @@ def test_embedded_script_renames_selection_in_place(bundle_script_env, fake_home
     assert not a.exists()
     assert not b.exists()
     assert (work / "7月ご請求 合同会社がっく 御中.pdf").exists()
-    assert (work / "支払通知書 スタジオ コンテナ 御中.pdf").exists()
+    assert (work / "9月支払通知書 スタジオ コンテナ 御中.pdf").exists()
     assert "リネーム済み" not in [p.name for p in work.iterdir()]
     # 実行前に確認ダイアログを出している
     assert "display dialog" in dialogs
