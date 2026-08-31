@@ -15,6 +15,42 @@ _DATE_RE = r"(?P<year>\d{4})\s*年\s*(?P<month>\d{1,2})\s*月\s*(?P<day>\d{1,2})
 _SEP_RE = r"[\s　:：]*"
 
 
+# ファイル名の「202608」形式
+_PATH_YYYYMM_RE = re.compile(r"(?<!\d)(20\d{2})(0[1-9]|1[0-2])(?!\d)")
+# フォルダ名の「8月」形式
+_PATH_MONTH_RE = re.compile(r"(?<!\d)(1[0-2]|[1-9])\s*月")
+_PATH_YEAR_RE = re.compile(r"(?<!\d)(20\d{2})(?!\d)")
+
+
+def find_path_date(path: Path) -> tuple[int | None, int | None, str | None]:
+    """ファイル名・フォルダ名から年月を読む。
+
+    支払通知書には発行日が書かれておらず、日付が支払期日しかない。
+    「2026/8月/支払い通知書/【Fe】202608_支払通知書-0.pdf」のように
+    保存場所が月を表している場合は、そちらを使いたい。
+    """
+    # 1. ファイル名の YYYYMM を優先する（いちばん具体的）
+    match = _PATH_YYYYMM_RE.search(path.stem)
+    if match:
+        return int(match.group(1)), int(match.group(2)), "ファイル名"
+
+    # 2. フォルダ名の「N月」。ファイル名自体は 1 で見たので親から探す
+    parts = path.absolute().parts
+    for i in range(len(parts) - 2, -1, -1):
+        match = _PATH_MONTH_RE.search(parts[i])
+        if not match:
+            continue
+        month = int(match.group(1))
+        # 月より上の階層から年を探す（「2026/8月」の 2026）
+        for j in range(i, -1, -1):
+            year_match = _PATH_YEAR_RE.search(parts[j])
+            if year_match:
+                return int(year_match.group(1)), month, "フォルダ名"
+        return None, month, "フォルダ名"
+
+    return None, None, None
+
+
 @dataclass(frozen=True)
 class TextLine:
     text: str
@@ -150,7 +186,20 @@ def extract(path: Path | str, config: Config = DEFAULT_CONFIG) -> ExtractedDoc:
     recipients = find_recipients(lines, config)
     recipient = recipients[0] if recipients else None
     labels = doc_type.date_labels if doc_type else ()
-    year, month, day, date_label = find_date(text, tuple(unicodedata.normalize("NFKC", label) for label in labels))
+    year, month, day, date_label = find_date(
+        text, tuple(unicodedata.normalize("NFKC", label) for label in labels)
+    )
+
+    # 書類種別によっては、本文の日付よりファイル名・フォルダ名の月を優先する
+    if doc_type is not None and doc_type.month_from == "path":
+        path_year, path_month, path_label = find_path_date(path)
+        if path_month is not None:
+            year, month, day, date_label = (
+                path_year if path_year is not None else year,
+                path_month,
+                None,
+                path_label,
+            )
 
     return ExtractedDoc(
         path=path,

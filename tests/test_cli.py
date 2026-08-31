@@ -237,3 +237,75 @@ def test_permission_denied_is_reported_as_such(tmp_path, monkeypatch, capsys):
 def test_missing_path_still_says_not_found(tmp_path, capsys):
     assert main([str(tmp_path / "ない.pdf"), "-o", str(tmp_path / "out")]) == 1
     assert "見つかりません" in capsys.readouterr().err
+
+
+def test_payment_notice_month_comes_from_filename(tmp_path):
+    work = tmp_path / "2026" / "8月" / "支払い通知書"
+    work.mkdir(parents=True)
+    write_pdf(work / "【Fe】202608_支払通知書-0.pdf", NOTICE_LINES)
+    out = tmp_path / "out"
+
+    assert main([str(work), "-o", str(out)]) == 0
+    # 本文のお支払い日は 9/30 だが、保存場所の 8月 を使う
+    assert (out / "8月支払通知書 スタジオ コンテナ 御中.pdf").exists()
+
+
+def test_payment_notice_month_comes_from_folder(tmp_path):
+    work = tmp_path / "2026" / "8月" / "支払い通知書"
+    work.mkdir(parents=True)
+    write_pdf(work / "通知-0.pdf", NOTICE_LINES)
+    out = tmp_path / "out"
+
+    assert main([str(work), "-o", str(out)]) == 0
+    assert (out / "8月支払通知書 スタジオ コンテナ 御中.pdf").exists()
+
+
+def test_payment_notice_falls_back_to_the_payment_date(tmp_path):
+    """保存場所に月が無ければ、本文のお支払い日を使う。"""
+    work = tmp_path / "どこか"
+    work.mkdir()
+    write_pdf(work / "通知.pdf", NOTICE_LINES)
+    out = tmp_path / "out"
+
+    assert main([str(work), "-o", str(out)]) == 0
+    assert (out / "9月支払通知書 スタジオ コンテナ 御中.pdf").exists()
+
+
+def test_renaming_a_payment_notice_twice_keeps_the_month(tmp_path):
+    """リネーム後に再実行しても月が変わらない（フォルダから読めるため）。"""
+    work = tmp_path / "2026" / "8月" / "支払い通知書"
+    work.mkdir(parents=True)
+    write_pdf(work / "【Fe】202608_支払通知書-0.pdf", NOTICE_LINES)
+
+    assert main([str(work), "--move"]) == 0
+    renamed = work / "8月支払通知書 スタジオ コンテナ 御中.pdf"
+    assert renamed.exists()
+
+    assert main([str(work), "--move"]) == 0
+    assert renamed.exists()
+    assert len(list(work.glob("*.pdf"))) == 1
+
+
+def test_invoice_month_still_comes_from_the_document(tmp_path):
+    """請求書は保存場所ではなく本文の請求日を使う（従来どおり）。"""
+    work = tmp_path / "2026" / "12月" / "請求書"
+    work.mkdir(parents=True)
+    write_pdf(work / "請求.pdf", INVOICE_LINES)
+    out = tmp_path / "out"
+
+    assert main([str(work), "-o", str(out)]) == 0
+    assert (out / "7月ご請求 合同会社がっく 御中.pdf").exists()
+
+
+def test_rerunning_move_does_not_create_duplicates(tmp_path, capsys):
+    """既に正しい名前のファイルに (2) を作らない。"""
+    work = tmp_path / "請求書"
+    work.mkdir()
+    write_pdf(work / "scan.pdf", INVOICE_LINES)
+
+    assert main([str(work), "--move"]) == 0
+    assert main([str(work), "--move"]) == 0
+    assert main([str(work), "--move"]) == 0
+
+    assert [p.name for p in work.glob("*.pdf")] == ["7月ご請求 合同会社がっく 御中.pdf"]
+    assert "すでに正しい名前です" in capsys.readouterr().out

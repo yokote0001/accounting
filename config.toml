@@ -16,6 +16,8 @@
 # date_labels は「何月」を決めるために上から順に探す日付ラベル。
 # detect は本文にこの語が含まれていればその種別と判定する（大文字小文字は無視）。
 # priority が小さい種別から先に判定される。
+# month_from は月をどこから取るか。"content" = 本文の日付（既定）、
+# "path" = ファイル名の「202608」またはフォルダ名の「8月」。
 
 [general]
 # 宛名として認める敬称
@@ -27,7 +29,8 @@ replacement = "_"
 label = "支払通知書"
 detect = ["支払通知書", "PAYMENT NOTICE"]
 date_labels = ["お支払い日", "お支払日", "支払日", "ご請求日"]
-# 月は「お支払い日」から取る
+# 月は保存場所から取る（本文の「お支払い日」は支払期日なので月がずれるため）
+month_from = "path"
 template = "{month}月{label} {recipient}"
 priority = 10
 

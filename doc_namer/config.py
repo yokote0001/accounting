@@ -38,6 +38,8 @@ class DocTypeRule:
     template: str = "{month}月 {recipient}"
     # 判定の優先順位。小さいほど先に判定される
     priority: int = 100
+    # 月をどこから取るか: "content"（本文の日付）/ "path"（ファイル名・フォルダ名）
+    month_from: str = "content"
 
 
 @dataclass(frozen=True)
@@ -64,8 +66,10 @@ DEFAULT_DOC_TYPES: tuple[DocTypeRule, ...] = (
         label="支払通知書",
         detect=("支払通知書", "PAYMENT NOTICE"),
         date_labels=("お支払い日", "お支払日", "支払日", "ご請求日"),
-        # 月は「お支払い日」から取る
+        # 月は保存場所（ファイル名の 202608 / フォルダ名の 8月）から取る。
+        # 支払通知書には発行日が無く、本文の日付は支払期日なので月がずれる。
         template="{month}月{label} {recipient}",
+        month_from="path",
         # 「請求」より先に判定する（支払通知書に請求の語が混ざっても取り違えないため）
         priority=10,
     ),
@@ -115,6 +119,7 @@ def load_config(path: Path | str | None = None) -> Config:
                 date_labels=tuple(body.get("date_labels", ())),
                 template=body["template"],
                 priority=int(body.get("priority", 100)),
+                month_from=body.get("month_from", "content"),
             )
         )
 

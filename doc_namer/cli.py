@@ -177,6 +177,13 @@ def main(argv: list[str] | None = None) -> int:
 
         filename = build_filename(doc, config)
         target_dir = pdf.parent if args.move else out_dir
+
+        # すでに正しい名前なら何もしない。ここを先に見ないと、自分自身と
+        # 名前がぶつかったと判断して「(2)」を作り続けてしまう。
+        if args.move and (target_dir / filename).resolve() == pdf.resolve():
+            print(f"[--] {pdf.name}（すでに正しい名前です）")
+            continue
+
         if args.overwrite or args.dry_run:
             target = target_dir / filename
         else:
@@ -200,9 +207,6 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         if args.move:
-            if target.resolve() == pdf.resolve():
-                print(f"[--] {pdf.name}（すでに正しい名前です）")
-                continue
             pdf.replace(target)
         else:
             shutil.copy2(pdf, target)
